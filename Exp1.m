@@ -19,7 +19,6 @@ elapsed = 0;
 
 robotOrigin = [0; 0];
 calcTheta = 0;
-curWheels = [0; 0];
 
 encSub = rossubscriber('/encoders');
 while 1
@@ -38,7 +37,13 @@ VL_cur = 0;
 VR_cur = 0;
 clf;
 curTime = tic;
+plot(0, R, 'k*');
+hold on;
+
+loopNum = 0;
+
 while (elapsed < time_tot)
+    plot(robotOrigin(1), robotOrigin(2), 'ro');
     loopTime = toc(curTime); % Value of deltaT (s)
     curTime = tic;
     while 1
@@ -46,8 +51,8 @@ while (elapsed < time_tot)
         if any(encMessage.Data)
             cur_L = encMessage.Data(1);
             cur_R = encMessage.Data(2);
-            VL_cur = (cur_L - prev_L)/loopTime % Compute current VL 
-            VR_cur = (cur_R - prev_R)/loopTime % Compute current VR
+            VL_cur = (cur_L - prev_L)/loopTime; % Compute current VL 
+            VR_cur = (cur_R - prev_R)/loopTime; % Compute current VR
             break;
         end
     end
@@ -56,16 +61,22 @@ while (elapsed < time_tot)
     
     
     
-    omegaComp = (VL_cur-VR_cur)/d; % Computed angular velocity (rad/s)
-    angleSwept = omegaComp*loopTime; % Angle swept around ICC
+    omegaComp = -(VL_cur-VR_cur)/d; % Computed angular velocity (rad/s)
+    deltTheta = omegaComp*loopTime; % Angle swept around ICC (delta theta)
     
-    rotMatrix = [cos(angleSwept) -sin(angleSwept); sin(angleSwept) cos(angleSwept)]; % Rotation matrix
-    translationMatrix = robotOrigin+[sin(omegaComp)*R; cos(omegaComp)*R]; % Translation matrix
-    robotOrigin = (rotMatrix*(robotOrigin-translationMatrix))+translationMatrix; % Perform rotation of robot position around ICC
-    calcTheta = calcTheta + angleSwept;
-    plot(robotOrigin(1), robotOrigin(2), 'ro');
+    rotMatrix = [cos(deltTheta) -sin(deltTheta); sin(deltTheta) cos(deltTheta)]; % Rotation matrix
+    translationMatrix = robotOrigin+[-sin(calcTheta)*R; cos(calcTheta)*R]; % Translation matrix
+    plot(translationMatrix(1), translationMatrix(2), 'k*');
+    if (loopNum == 1) % This is a flag to avoid a large jump in theta at the beginning
+        robotOrigin = (rotMatrix*(robotOrigin-translationMatrix))+translationMatrix; % Perform rotation of robot position around ICC
+        calcTheta = calcTheta + deltTheta;
+    end
+    loopNum = 1;
+    axis([-1 1 -1 1]);
     hold on;
     elapsed = toc(startTime);
+    plot(R*sin(elapsed*omega),R-(R*cos(elapsed*omega)), 'bo'); 
+
 
 end
 
